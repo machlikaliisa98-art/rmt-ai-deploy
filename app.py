@@ -1,87 +1,79 @@
+from flask import Flask, request, jsonify, render_template
+import csv
+from datetime import datetime
 import os
-import pandas as pd
-from flask import Flask, request, render_template
-from twilio.rest import Client
-from dotenv import load_dotenv
-import datetime
-import openai
+
+app = Flask(__name__)
+
+# -----------------------------
+# Health Check
+# -----------------------------
 @app.route("/health")
 def health():
     return "OK"
 
-load_dotenv()
-
-app = Flask(__name__)
-
-# Load keys
-TWILIO_SID = os.getenv("TWILIO_SID")
-TWILIO_AUTH = os.getenv("TWILIO_AUTH")
-WHATSAPP_NUMBER = os.getenv("WHATSAPP_NUMBER")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-client = Client(TWILIO_SID, TWILIO_AUTH)
-openai.api_key = OPENAI_API_KEY
-
-ORDERS_FILE = "orders.csv"
-
-# Send WhatsApp message
-def send_whatsapp(to, message):
-    client.messages.create(
-        body=message,
-        from_=WHATSAPP_NUMBER,
-        to=to
-    )
-
-# Save orders
-def save_order(customer, product, quantity):
-    df = pd.read_csv(ORDERS_FILE)
-    df.loc[len(df)] = [
-        customer, product, quantity, "Confirmed", datetime.datetime.now()
-    ]
-    df.to_csv(ORDERS_FILE, index=False)
-
-# AI reply
-def ai_reply(text):
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": "You are a professional sales assistant for Rwanda Mountain Tea Ltd."},
-            {"role": "user", "content": text}
-        ]
-    )
-    return response.choices[0].message["content"]
-
-# WhatsApp webhook
-@app.route("/whatsapp", methods=["POST"])
-def whatsapp_webhook():
-    incoming_msg = request.values.get("Body", "").lower()
-    sender = request.values.get("From")
-
-    # Simple order detector
-    if "order" in incoming_msg:
-        product = "Black Tea"
-        quantity = "1"
-
-        save_order(sender, product, quantity)
-
-        reply = f"✅ Order received!\nProduct: {product}\nQuantity: {quantity}\nStatus: Confirmed\nRwanda Mountain Tea"
-    else:
-        reply = ai_reply(incoming_msg)
-
-    send_whatsapp(sender, reply)
-    return "OK", 200
-
-# Dashboard
+# -----------------------------
+# Home Page
+# -----------------------------
 @app.route("/")
+def home():
+    return """
+    <h2>Rwanda Mountain Tea – AI Order Automation</h2>
+    <p>System running successfully.</p>
+    """
+
+# -----------------------------
+# Dashboard
+# -----------------------------
+@app.route("/dashboard")
 def dashboard():
-    df = pd.read_csv(ORDERS_FILE)
+    orders = []
+    if os.path.exists("orders.csv"):
+        with open("orders.csv", newline="") as f:
+            reader = csv.reader(f)
+            for row in reader:
+                orders.append(row)
 
-    orders_count = len(df)
+    html = "<h2>Orders Dashboard</h2><table border=1>"
+    for row in orders:
+        html += "<tr>" + "".join(f"<td>{col}</td>" for col in row) + "</tr>"
+    html += "</table>"
+    return html
 
-    return render_template("dashboard.html",
-                           tables=[df.to_html()],
-                           orders_count=orders_count)
+# -----------------------------
+# Web Order API
+# -----------------------------
+@app.route("/order", methods=["POST"])
+def order():
+    data = request.json
+    name = data.get("name")
+    product = data.get("product")
+    quantity = data.get("quantity")
 
+    with open("orders.csv", "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([datetime.now(), name, product, quantity])
+
+    return jsonify({
+        "status": "success",
+        "message": "Order received successfully"
+    })
+
+# -----------------------------
+# WhatsApp Webhook Simulation
+# -----------------------------
+@app.route("/whatsapp", methods=["POST"])
+def whatsapp():
+    msg = request.form.get("Body", "").lower()
+
+    if "order" in msg:
+        reply = "✅ Your tea order has been received and is being processed."
+    else:
+        reply = "Hello from Rwanda Mountain Tea AI assistant."
+
+    return reply
+
+# -----------------------------
 if __name__ == "__main__":
-    app.run(debug=True)
-
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
