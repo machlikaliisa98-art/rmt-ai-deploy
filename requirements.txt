@@ -1,0 +1,8 @@
+flask
+pandas
+matplotlib
+twilio
+openai
+python-dotenv
+gunicorn
+
