@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify
 import csv
 import os
 from datetime import datetime
+import pandas as pd
+import html
 
 app = Flask(__name__)
 
@@ -67,7 +69,6 @@ def home():
             });
         }
 
-        // Optional: send message on Enter key
         document.getElementById("msg").addEventListener("keydown", function(e){
             if(e.key === "Enter") send();
         });
@@ -125,42 +126,52 @@ def order():
 # -----------------------------
 @app.route("/dashboard")
 def dashboard():
-    import pandas as pd
     rows = []
-    if os.path.exists("orders.csv"):
-        df = pd.read_csv("orders.csv")
-        rows = df.to_dict(orient="records")
-    else:
+
+    try:
+        if os.path.exists("orders.csv"):
+            df = pd.read_csv("orders.csv")
+            df = df.dropna(subset=["Time", "Buyer", "Product", "Quantity"])
+            df["Quantity"] = pd.to_numeric(df["Quantity"], errors='coerce').fillna(0).astype(int)
+            rows = df.to_dict(orient="records")
+    except Exception as e:
+        print("Error reading CSV:", e)
         rows = []
 
-    html = "<html><head><title>RMT Dashboard</title><script src='https://cdn.jsdelivr.net/npm/chart.js'></script></head><body>"
-    html += "<h2>Orders Dashboard</h2>"
-    html += "<canvas id='chart' width='600' height='400'></canvas>"
-    html += "<table border='1'><tr><th>Time</th><th>Buyer</th><th>Product</th><th>Quantity</th></tr>"
-    for r in rows:
-        html += f"<tr><td>{r['Time']}</td><td>{r['Buyer']}</td><td>{r['Product']}</td><td>{r['Quantity']}</td></tr>"
-    html += "</table>"
+    html_content = "<html><head><title>RMT Dashboard</title><script src='https://cdn.jsdelivr.net/npm/chart.js'></script></head><body>"
+    html_content += "<h2>Orders Dashboard</h2>"
+    html_content += "<canvas id='chart' width='600' height='400'></canvas>"
+    html_content += "<table border='1'><tr><th>Time</th><th>Buyer</th><th>Product</th><th>Quantity</th></tr>"
 
-    html += """
+    for r in rows:
+        html_content += f"<tr><td>{html.escape(str(r['Time']))}</td><td>{html.escape(str(r['Buyer']))}</td><td>{html.escape(str(r['Product']))}</td><td>{r['Quantity']}</td></tr>"
+
+    html_content += "</table>"
+
+    labels = [html.escape(str(r['Time'])) for r in rows]
+    data = [r['Quantity'] for r in rows]
+
+    html_content += f"""
     <script>
     const ctx = document.getElementById('chart').getContext('2d');
-    const labels = """ + str([r['Time'] for r in rows]) + """;
-    const data = """ + str([int(r['Quantity']) for r in rows]) + """;
-    const chart = new Chart(ctx, {
+    const chart = new Chart(ctx, {{
         type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
+        data: {{
+            labels: {labels},
+            datasets: [{{
                 label: 'Quantity Ordered',
-                data: data,
+                data: {data},
                 backgroundColor: 'rgba(27, 94, 32, 0.7)'
-            }]
-        },
-        options: { responsive: true, scales: { y: { beginAtZero: true } } }
-    });
+            }}]
+        }},
+        options: {{
+            responsive: true,
+            scales: {{ y: {{ beginAtZero: true }} }}
+        }}
+    }});
     </script></body></html>
     """
-    return html
+    return html_content
 
 # -----------------------------
 # WhatsApp Webhook
