@@ -1,12 +1,32 @@
 from flask import Flask, request, jsonify
 import csv
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import html
 import random
+import re
 
 app = Flask(__name__)
+
+# -----------------------------
+# Initialize fake historical orders
+# -----------------------------
+def init_fake_orders():
+    if not os.path.exists("orders.csv") or os.path.getsize("orders.csv") == 0:
+        buyers = ["Alice Ltd", "Bob Exports", "Charlie Traders", "Diana Co", "Eagle Corp"]
+        products = ["Green Tea", "Black Tea", "Herbal Tea"]
+        with open("orders.csv", "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Time", "Buyer", "Product", "Quantity"])
+            for _ in range(10):
+                time = datetime.now() - timedelta(hours=random.randint(1, 48))
+                buyer = random.choice(buyers)
+                product = random.choice(products)
+                quantity = random.randint(50, 1000)
+                writer.writerow([time, buyer, product, quantity])
+
+init_fake_orders()
 
 # -----------------------------
 # Health Check
@@ -16,79 +36,7 @@ def health():
     return "OK"
 
 # -----------------------------
-# Home – WhatsApp-style Chat UI with Typing Effect
-# -----------------------------
-@app.route("/")
-def home():
-    return """
-    <html>
-    <head>
-        <title>Rwanda Mountain Tea – AI Assistant</title>
-        <style>
-            body { font-family: Arial; background: #e5ddd5; }
-            .container { width: 400px; margin: 20px auto; background: #f0f0f0; border-radius: 10px; display: flex; flex-direction: column; }
-            .chat-header { background: #075e54; color: white; padding: 15px; border-radius: 10px 10px 0 0; font-weight: bold; text-align: center; }
-            .chat-body { flex: 1; padding: 10px; overflow-y: scroll; height: 400px; background: #ece5dd; }
-            .message { padding: 8px 12px; margin: 5px 0; border-radius: 20px; max-width: 80%; }
-            .bot { background: white; color: black; align-self: flex-start; }
-            .user { background: #dcf8c6; color: black; align-self: flex-end; }
-            .chat-footer { display: flex; border-top: 1px solid #ccc; }
-            .chat-footer input { flex: 1; padding: 10px; border: none; border-radius: 0; }
-            .chat-footer button { padding: 10px; background: #25d366; border: none; color: white; cursor: pointer; }
-            .typing { font-style: italic; color: #555; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="chat-header">Rwanda Mountain Tea – AI Assistant</div>
-            <div id="chat" class="chat-body"></div>
-            <div class="chat-footer">
-                <input id="msg" placeholder="Type a message..." />
-                <button onclick="send()">Send</button>
-            </div>
-        </div>
-
-        <script>
-        function send() {
-            const input = document.getElementById("msg");
-            const msg = input.value.trim();
-            if(!msg) return;
-            input.value = '';
-
-            const chat = document.getElementById("chat");
-            chat.innerHTML += `<div class="message user">${msg}</div>`;
-            chat.scrollTop = chat.scrollHeight;
-
-            // Typing indicator
-            const typingDiv = document.createElement("div");
-            typingDiv.className = "message bot typing";
-            typingDiv.innerText = "AI is typing...";
-            chat.appendChild(typingDiv);
-            chat.scrollTop = chat.scrollHeight;
-
-            fetch("/chat", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({message: msg})
-            })
-            .then(r => r.json())
-            .then(d => {
-                typingDiv.remove();
-                chat.innerHTML += `<div class="message bot">${d.reply}</div>`;
-                chat.scrollTop = chat.scrollHeight;
-            });
-        }
-
-        document.getElementById("msg").addEventListener("keydown", function(e){
-            if(e.key === "Enter") send();
-        });
-        </script>
-    </body>
-    </html>
-    """
-
-# -----------------------------
-# AI Chat Backend – dynamic responses
+# AI Chat Backend – dynamic parsing
 # -----------------------------
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -96,39 +44,20 @@ def chat():
         data = request.json
         msg = data.get("message", "").lower()
 
-        responses = {
-            "order": [
-                "✅ Your tea order has been captured and sent to our team.",
-                "Got it! Your order is now in our system.",
-                "Your tea order has been received. We'll process it shortly."
-            ],
-            "price": [
-                "💰 Pricing depends on tea type and quantity.",
-                "The current price for black tea is $5/kg, green tea $6/kg, herbal tea $7/kg.",
-                "Pricing varies by order size. Can you tell me the quantity you want?"
-            ],
-            "greeting": [
-                "Hello! How can I help you today?",
-                "Hi there! Ready to take your tea orders.",
-                "Hey! I'm Rwanda Mountain Tea’s AI assistant."
-            ],
-            "default": [
-                "I’m here to help you with orders, prices, or delivery updates.",
-                "Can you clarify your request? I can help with tea orders.",
-                "I didn’t quite get that, but I can help you order tea or check prices."
-            ]
-        }
+        # Match orders like "500kg black tea"
+        order_match = re.search(r'(\d+)\s*kg.*(green|black|herbal)\s*tea', msg)
+        if order_match:
+            quantity = order_match.group(1)
+            product = order_match.group(2).title()
+            return jsonify({"reply": f"✅ Your order of {quantity}kg {product} has been received and is being processed."})
 
-        if "order" in msg:
-            reply = random.choice(responses["order"])
-        elif "price" in msg or "cost" in msg:
-            reply = random.choice(responses["price"])
-        elif any(g in msg for g in ["hi", "hello", "hey"]):
-            reply = random.choice(responses["greeting"])
-        else:
-            reply = random.choice(responses["default"])
+        if "price" in msg or "cost" in msg:
+            return jsonify({"reply": "💰 Current prices: Black Tea $5/kg, Green Tea $6/kg, Herbal Tea $7/kg."})
 
-        return jsonify({"reply": reply})
+        if any(g in msg for g in ["hi", "hello", "hey"]):
+            return jsonify({"reply": "Hello! How can I help you today?"})
+
+        return jsonify({"reply": "I’m here to help you with orders, prices, or delivery updates."})
     except Exception as e:
         return jsonify({"reply": f"⚠️ Server error: {e}"})
 
@@ -157,12 +86,11 @@ def order():
         return jsonify({"status": "error", "message": str(e)})
 
 # -----------------------------
-# Dashboard – Live chart & table
+# Dashboard
 # -----------------------------
 @app.route("/dashboard")
 def dashboard():
     rows = []
-
     try:
         if os.path.exists("orders.csv"):
             df = pd.read_csv("orders.csv")
@@ -233,16 +161,6 @@ def dashboard_data():
     labels = [str(r['Time']) for r in rows]
     data = [r['Quantity'] for r in rows]
     return jsonify({"labels": labels, "data": data})
-
-# -----------------------------
-# WhatsApp Webhook
-# -----------------------------
-@app.route("/whatsapp", methods=["POST"])
-def whatsapp():
-    msg = request.form.get("Body", "").lower()
-    if "order" in msg:
-        return "✅ Your tea order has been received and is being processed."
-    return "Hello from Rwanda Mountain Tea AI assistant."
 
 # -----------------------------
 if __name__ == "__main__":
