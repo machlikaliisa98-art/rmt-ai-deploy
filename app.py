@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 import pandas as pd
 import html
+import random
 
 app = Flask(__name__)
 
@@ -87,7 +88,7 @@ def home():
     """
 
 # -----------------------------
-# AI Chat Backend
+# AI Chat Backend – dynamic responses
 # -----------------------------
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -95,16 +96,41 @@ def chat():
         data = request.json
         msg = data.get("message", "").lower()
 
+        responses = {
+            "order": [
+                "✅ Your tea order has been captured and sent to our team.",
+                "Got it! Your order is now in our system.",
+                "Your tea order has been received. We'll process it shortly."
+            ],
+            "price": [
+                "💰 Pricing depends on tea type and quantity.",
+                "The current price for black tea is $5/kg, green tea $6/kg, herbal tea $7/kg.",
+                "Pricing varies by order size. Can you tell me the quantity you want?"
+            ],
+            "greeting": [
+                "Hello! How can I help you today?",
+                "Hi there! Ready to take your tea orders.",
+                "Hey! I'm Rwanda Mountain Tea’s AI assistant."
+            ],
+            "default": [
+                "I’m here to help you with orders, prices, or delivery updates.",
+                "Can you clarify your request? I can help with tea orders.",
+                "I didn’t quite get that, but I can help you order tea or check prices."
+            ]
+        }
+
         if "order" in msg:
-            reply = "✅ Your tea order has been captured and sent to Rwanda Mountain Tea team."
-        elif "price" in msg:
-            reply = "💰 Pricing depends on tea grade and export destination."
+            reply = random.choice(responses["order"])
+        elif "price" in msg or "cost" in msg:
+            reply = random.choice(responses["price"])
+        elif any(g in msg for g in ["hi", "hello", "hey"]):
+            reply = random.choice(responses["greeting"])
         else:
-            reply = "Hello! I am Rwanda Mountain Tea’s AI assistant. How can I help you?"
+            reply = random.choice(responses["default"])
 
         return jsonify({"reply": reply})
-    except Exception:
-        return jsonify({"reply": "⚠️ Server error. Try again."})
+    except Exception as e:
+        return jsonify({"reply": f"⚠️ Server error: {e}"})
 
 # -----------------------------
 # Orders API
@@ -131,7 +157,7 @@ def order():
         return jsonify({"status": "error", "message": str(e)})
 
 # -----------------------------
-# Dashboard – Auto-refresh
+# Dashboard – Live chart & table
 # -----------------------------
 @app.route("/dashboard")
 def dashboard():
@@ -180,7 +206,6 @@ def dashboard():
         }}
     }});
 
-    // Auto-refresh every 5 seconds
     setInterval(() => {{
         fetch('/dashboard_data')
         .then(r => r.json())
@@ -195,7 +220,7 @@ def dashboard():
     return html_content
 
 # -----------------------------
-# Dashboard Data API for Auto-Refresh
+# Dashboard data API
 # -----------------------------
 @app.route("/dashboard_data")
 def dashboard_data():
