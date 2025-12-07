@@ -18,10 +18,46 @@ def health():
 @app.route("/")
 def home():
     return """
-    <h2>Rwanda Mountain Tea – AI Order Automation</h2>
-    <p>System running successfully.</p>
-    """
+    <html>
+    <head>
+        <title>Rwanda Mountain Tea – AI Assistant</title>
+        <style>
+            body { font-family: Arial; background: #f4f6f8; }
+            .container { width: 400px; margin: 40px auto; background: white; padding: 20px; border-radius: 10px; }
+            .bot { background: #e6f2ff; padding: 10px; margin: 5px 0; border-radius: 8px; }
+            .user { background: #d1ffe0; padding: 10px; margin: 5px 0; border-radius: 8px; text-align: right; }
+            input, button { width: 100%; padding: 10px; margin-top: 10px; }
+            button { background: #1b5e20; color: white; border: none; border-radius: 5px; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h3>Rwanda Mountain Tea – AI Order Assistant</h3>
+            <div id="chat"></div>
+            <input id="msg" placeholder="Type your message..." />
+            <button onclick="send()">Send</button>
+        </div>
 
+        <script>
+        function send() {
+            const msg = document.getElementById("msg").value;
+            const chat = document.getElementById("chat");
+            chat.innerHTML += `<div class="user">${msg}</div>`;
+            
+            fetch("/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({message: msg})
+            })
+            .then(r => r.json())
+            .then(d => {
+                chat.innerHTML += `<div class="bot">${d.reply}</div>`;
+            });
+        }
+        </script>
+    </body>
+    </html>
+    """
 # -----------------------------
 # Dashboard
 # -----------------------------
