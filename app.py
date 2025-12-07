@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 import csv
-from datetime import datetime
 import os
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -28,12 +28,13 @@ def home():
             .user { background: #d1ffe0; padding: 10px; margin: 5px 0; border-radius: 8px; text-align: right; }
             input, button { width: 100%; padding: 10px; margin-top: 10px; }
             button { background: #1b5e20; color: white; border: none; border-radius: 5px; }
+            #chat { height: 300px; overflow-y: scroll; border:1px solid #ccc; padding:10px; }
         </style>
     </head>
     <body>
         <div class="container">
             <h3>Rwanda Mountain Tea – AI Order Assistant</h3>
-            <div id="chat" style="height:300px; overflow-y:scroll; border:1px solid #ccc; padding:10px;"></div>
+            <div id="chat"></div>
             <input id="msg" placeholder="Type your message..." />
             <button onclick="send()">Send</button>
         </div>
@@ -61,6 +62,7 @@ def home():
     </body>
     </html>
     """
+
 # -----------------------------
 # AI Chat Backend
 # -----------------------------
@@ -75,30 +77,35 @@ def chat():
         elif "price" in msg:
             reply = "💰 Pricing depends on tea grade and export destination."
         else:
-            reply = "Hello, I am Rwanda Mountain Tea’s AI assistant. How can I help you?"
+            reply = "Hello! I am Rwanda Mountain Tea’s AI assistant. How can I help you?"
 
         return jsonify({"reply": reply})
-    except Exception as e:
-        return jsonify({"reply": "System error, but server is still running."})
+    except Exception:
+        return jsonify({"reply": "⚠️ Server error. Try again."})
 
 # -----------------------------
-# Order API
+# Orders API
 # -----------------------------
 @app.route("/order", methods=["POST"])
 def order():
     try:
         data = request.json
-        name = data.get("name")
-        product = data.get("product")
-        quantity = data.get("quantity")
+        name = data.get("name", "Unknown")
+        product = data.get("product", "Unknown")
+        quantity = int(data.get("quantity", 0))
+
+        if not os.path.exists("orders.csv"):
+            with open("orders.csv", "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["Time", "Buyer", "Product", "Quantity"])
 
         with open("orders.csv", "a", newline="") as f:
             writer = csv.writer(f)
             writer.writerow([datetime.now(), name, product, quantity])
 
         return jsonify({"status": "success", "message": "Order saved"})
-    except:
-        return jsonify({"status": "error"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
 
 # -----------------------------
 # Dashboard
@@ -108,52 +115,39 @@ def dashboard():
     import pandas as pd
     rows = []
     if os.path.exists("orders.csv"):
-        df = pd.read_csv("orders.csv", header=None, names=["Time", "Buyer", "Product", "Quantity"])
+        df = pd.read_csv("orders.csv")
         rows = df.to_dict(orient="records")
     else:
         rows = []
 
-    # Build HTML with Chart.js
-    html = """
-    <html>
-    <head>
-        <title>Rwanda Mountain Tea Dashboard</title>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    </head>
-    <body>
-        <h2>Orders Dashboard</h2>
-        <canvas id="chart" width="600" height="400"></canvas>
-        <table border="1">
-            <tr><th>Time</th><th>Buyer</th><th>Product</th><th>Quantity</th></tr>
-    """
+    # HTML table
+    html = "<html><head><title>RMT Dashboard</title><script src='https://cdn.jsdelivr.net/npm/chart.js'></script></head><body>"
+    html += "<h2>Orders Dashboard</h2>"
+    html += "<canvas id='chart' width='600' height='400'></canvas>"
+    html += "<table border='1'><tr><th>Time</th><th>Buyer</th><th>Product</th><th>Quantity</th></tr>"
     for r in rows:
         html += f"<tr><td>{r['Time']}</td><td>{r['Buyer']}</td><td>{r['Product']}</td><td>{r['Quantity']}</td></tr>"
-
     html += "</table>"
 
     # Chart.js script
     html += """
     <script>
-        const ctx = document.getElementById('chart').getContext('2d');
-        const labels = """ + str([r['Time'] for r in rows]) + """;
-        const data = """ + str([int(r['Quantity']) for r in rows]) + """;
-        const chart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Quantity Ordered',
-                    data: data,
-                    backgroundColor: 'rgba(27, 94, 32, 0.7)'
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: { y: { beginAtZero: true } }
-            }
-        });
-    </script>
-    </body></html>
+    const ctx = document.getElementById('chart').getContext('2d');
+    const labels = """ + str([r['Time'] for r in rows]) + """;
+    const data = """ + str([int(r['Quantity']) for r in rows]) + """;
+    const chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Quantity Ordered',
+                data: data,
+                backgroundColor: 'rgba(27, 94, 32, 0.7)'
+            }]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+    </script></body></html>
     """
     return html
 
