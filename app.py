@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify
 import csv
 from datetime import datetime
 import os
@@ -13,7 +13,7 @@ def health():
     return "OK"
 
 # -----------------------------
-# Home Page
+# Home – AI Chat UI
 # -----------------------------
 @app.route("/")
 def home():
@@ -58,69 +58,74 @@ def home():
     </body>
     </html>
     """
+
+# -----------------------------
+# AI Chat Backend
+# -----------------------------
+@app.route("/chat", methods=["POST"])
+def chat():
+    try:
+        data = request.json
+        msg = data.get("message", "").lower()
+
+        if "order" in msg:
+            reply = "✅ Your tea order has been captured and sent to Rwanda Mountain Tea team."
+        elif "price" in msg:
+            reply = "💰 Pricing depends on tea grade and export destination."
+        else:
+            reply = "Hello, I am Rwanda Mountain Tea’s AI assistant. How can I help you?"
+
+        return jsonify({"reply": reply})
+    except Exception as e:
+        return jsonify({"reply": "System error, but server is still running."})
+
+# -----------------------------
+# Order API
+# -----------------------------
+@app.route("/order", methods=["POST"])
+def order():
+    try:
+        data = request.json
+        name = data.get("name")
+        product = data.get("product")
+        quantity = data.get("quantity")
+
+        with open("orders.csv", "a", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([datetime.now(), name, product, quantity])
+
+        return jsonify({"status": "success", "message": "Order saved"})
+    except:
+        return jsonify({"status": "error"})
+
 # -----------------------------
 # Dashboard
 # -----------------------------
 @app.route("/dashboard")
 def dashboard():
-    orders = []
+    rows = []
     if os.path.exists("orders.csv"):
-        with open("orders.csv", newline="") as f:
+        with open("orders.csv") as f:
             reader = csv.reader(f)
             for row in reader:
-                orders.append(row)
+                rows.append(row)
 
     html = "<h2>Orders Dashboard</h2><table border=1>"
-    for row in orders:
-        html += "<tr>" + "".join(f"<td>{col}</td>" for col in row) + "</tr>"
+    for r in rows:
+        html += "<tr>" + "".join(f"<td>{c}</td>" for c in r) + "</tr>"
     html += "</table>"
     return html
 
 # -----------------------------
-# Web Order API
-# -----------------------------
-@app.route("/order", methods=["POST"])
-def order():
-    data = request.json
-    name = data.get("name")
-    product = data.get("product")
-    quantity = data.get("quantity")
-
-    with open("orders.csv", "a", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow([datetime.now(), name, product, quantity])
-
-    return jsonify({
-        "status": "success",
-        "message": "Order received successfully"
-    })
-
-# -----------------------------
-# WhatsApp Webhook Simulation
+# WhatsApp Webhook
 # -----------------------------
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp():
     msg = request.form.get("Body", "").lower()
-
     if "order" in msg:
-        reply = "✅ Your tea order has been received and is being processed."
-    else:
-        reply = "Hello from Rwanda Mountain Tea AI assistant."
+        return "✅ Your tea order has been received and is being processed."
+    return "Hello from Rwanda Mountain Tea AI assistant."
 
-    return reply
-    @app.route("/chat", methods=["POST"])
-def chat():
-    data = request.json
-    msg = data.get("message", "").lower()
-
-    if "order" in msg:
-        reply = "✅ Your tea order has been captured and sent to Rwanda Mountain Tea team."
-    elif "price" in msg:
-        reply = "💰 Pricing depends on tea grade and export destination."
-    else:
-        reply = "Hello, I am Rwanda Mountain Tea’s AI assistant. How can I help you?"
-
-    return jsonify({"reply": reply})
 # -----------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
