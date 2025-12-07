@@ -13,7 +13,7 @@ def health():
     return "OK"
 
 # -----------------------------
-# Home – AI Chat UI
+# Home – WhatsApp-style Chat UI
 # -----------------------------
 @app.route("/")
 def home():
@@ -22,30 +22,38 @@ def home():
     <head>
         <title>Rwanda Mountain Tea – AI Assistant</title>
         <style>
-            body { font-family: Arial; background: #f4f6f8; }
-            .container { width: 450px; margin: 40px auto; background: white; padding: 20px; border-radius: 10px; }
-            .bot { background: #e6f2ff; padding: 10px; margin: 5px 0; border-radius: 8px; }
-            .user { background: #d1ffe0; padding: 10px; margin: 5px 0; border-radius: 8px; text-align: right; }
-            input, button { width: 100%; padding: 10px; margin-top: 10px; }
-            button { background: #1b5e20; color: white; border: none; border-radius: 5px; }
-            #chat { height: 300px; overflow-y: scroll; border:1px solid #ccc; padding:10px; }
+            body { font-family: Arial; background: #e5ddd5; }
+            .container { width: 400px; margin: 20px auto; background: #f0f0f0; border-radius: 10px; display: flex; flex-direction: column; }
+            .chat-header { background: #075e54; color: white; padding: 15px; border-radius: 10px 10px 0 0; font-weight: bold; text-align: center; }
+            .chat-body { flex: 1; padding: 10px; overflow-y: scroll; height: 400px; background: #ece5dd; }
+            .message { padding: 8px 12px; margin: 5px 0; border-radius: 20px; max-width: 80%; }
+            .bot { background: white; color: black; align-self: flex-start; }
+            .user { background: #dcf8c6; color: black; align-self: flex-end; }
+            .chat-footer { display: flex; border-top: 1px solid #ccc; }
+            .chat-footer input { flex: 1; padding: 10px; border: none; border-radius: 0; }
+            .chat-footer button { padding: 10px; background: #25d366; border: none; color: white; cursor: pointer; }
         </style>
     </head>
     <body>
         <div class="container">
-            <h3>Rwanda Mountain Tea – AI Order Assistant</h3>
-            <div id="chat"></div>
-            <input id="msg" placeholder="Type your message..." />
-            <button onclick="send()">Send</button>
+            <div class="chat-header">Rwanda Mountain Tea – AI Assistant</div>
+            <div id="chat" class="chat-body"></div>
+            <div class="chat-footer">
+                <input id="msg" placeholder="Type a message..." />
+                <button onclick="send()">Send</button>
+            </div>
         </div>
 
         <script>
         function send() {
-            const msg = document.getElementById("msg").value;
-            if(msg.trim() === '') return;
+            const input = document.getElementById("msg");
+            const msg = input.value.trim();
+            if(!msg) return;
+            input.value = '';
+
             const chat = document.getElementById("chat");
-            chat.innerHTML += `<div class="user">${msg}</div>`;
-            document.getElementById("msg").value = '';
+            chat.innerHTML += `<div class="message user">${msg}</div>`;
+            chat.scrollTop = chat.scrollHeight;
 
             fetch("/chat", {
                 method: "POST",
@@ -54,10 +62,15 @@ def home():
             })
             .then(r => r.json())
             .then(d => {
-                chat.innerHTML += `<div class="bot">${d.reply}</div>`;
+                chat.innerHTML += `<div class="message bot">${d.reply}</div>`;
                 chat.scrollTop = chat.scrollHeight;
             });
         }
+
+        // Optional: send message on Enter key
+        document.getElementById("msg").addEventListener("keydown", function(e){
+            if(e.key === "Enter") send();
+        });
         </script>
     </body>
     </html>
@@ -120,7 +133,6 @@ def dashboard():
     else:
         rows = []
 
-    # HTML table
     html = "<html><head><title>RMT Dashboard</title><script src='https://cdn.jsdelivr.net/npm/chart.js'></script></head><body>"
     html += "<h2>Orders Dashboard</h2>"
     html += "<canvas id='chart' width='600' height='400'></canvas>"
@@ -129,7 +141,6 @@ def dashboard():
         html += f"<tr><td>{r['Time']}</td><td>{r['Buyer']}</td><td>{r['Product']}</td><td>{r['Quantity']}</td></tr>"
     html += "</table>"
 
-    # Chart.js script
     html += """
     <script>
     const ctx = document.getElementById('chart').getContext('2d');
