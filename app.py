@@ -15,7 +15,7 @@ def health():
     return "OK"
 
 # -----------------------------
-# Home – WhatsApp-style Chat UI
+# Home – WhatsApp-style Chat UI with Typing Effect
 # -----------------------------
 @app.route("/")
 def home():
@@ -34,6 +34,7 @@ def home():
             .chat-footer { display: flex; border-top: 1px solid #ccc; }
             .chat-footer input { flex: 1; padding: 10px; border: none; border-radius: 0; }
             .chat-footer button { padding: 10px; background: #25d366; border: none; color: white; cursor: pointer; }
+            .typing { font-style: italic; color: #555; }
         </style>
     </head>
     <body>
@@ -57,6 +58,13 @@ def home():
             chat.innerHTML += `<div class="message user">${msg}</div>`;
             chat.scrollTop = chat.scrollHeight;
 
+            // Typing indicator
+            const typingDiv = document.createElement("div");
+            typingDiv.className = "message bot typing";
+            typingDiv.innerText = "AI is typing...";
+            chat.appendChild(typingDiv);
+            chat.scrollTop = chat.scrollHeight;
+
             fetch("/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -64,6 +72,7 @@ def home():
             })
             .then(r => r.json())
             .then(d => {
+                typingDiv.remove();
                 chat.innerHTML += `<div class="message bot">${d.reply}</div>`;
                 chat.scrollTop = chat.scrollHeight;
             });
@@ -122,7 +131,7 @@ def order():
         return jsonify({"status": "error", "message": str(e)})
 
 # -----------------------------
-# Dashboard
+# Dashboard – Auto-refresh
 # -----------------------------
 @app.route("/dashboard")
 def dashboard():
@@ -166,12 +175,39 @@ def dashboard():
         }},
         options: {{
             responsive: true,
-            scales: {{ y: {{ beginAtZero: true }} }}
+            scales: {{ y: {{ beginAtZero: true }} }},
+            animation: {{ duration: 500 }}
         }}
     }});
+
+    // Auto-refresh every 5 seconds
+    setInterval(() => {{
+        fetch('/dashboard_data')
+        .then(r => r.json())
+        .then(d => {{
+            chart.data.labels = d.labels;
+            chart.data.datasets[0].data = d.data;
+            chart.update();
+        }});
+    }}, 5000);
     </script></body></html>
     """
     return html_content
+
+# -----------------------------
+# Dashboard Data API for Auto-Refresh
+# -----------------------------
+@app.route("/dashboard_data")
+def dashboard_data():
+    rows = []
+    if os.path.exists("orders.csv"):
+        df = pd.read_csv("orders.csv")
+        df = df.dropna(subset=["Time", "Buyer", "Product", "Quantity"])
+        df["Quantity"] = pd.to_numeric(df["Quantity"], errors='coerce').fillna(0).astype(int)
+        rows = df.to_dict(orient="records")
+    labels = [str(r['Time']) for r in rows]
+    data = [r['Quantity'] for r in rows]
+    return jsonify({"labels": labels, "data": data})
 
 # -----------------------------
 # WhatsApp Webhook
