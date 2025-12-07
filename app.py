@@ -108,7 +108,19 @@ def whatsapp():
         reply = "Hello from Rwanda Mountain Tea AI assistant."
 
     return reply
+    @app.route("/chat", methods=["POST"])
+def chat():
+    data = request.json
+    msg = data.get("message", "").lower()
 
+    if "order" in msg:
+        reply = "✅ Your tea order has been captured and sent to Rwanda Mountain Tea team."
+    elif "price" in msg:
+        reply = "💰 Pricing depends on tea grade and export destination."
+    else:
+        reply = "Hello, I am Rwanda Mountain Tea’s AI assistant. How can I help you?"
+
+    return jsonify({"reply": reply})
 # -----------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
