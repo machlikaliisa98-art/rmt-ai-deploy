@@ -23,7 +23,7 @@ def home():
         <title>Rwanda Mountain Tea – AI Assistant</title>
         <style>
             body { font-family: Arial; background: #f4f6f8; }
-            .container { width: 400px; margin: 40px auto; background: white; padding: 20px; border-radius: 10px; }
+            .container { width: 450px; margin: 40px auto; background: white; padding: 20px; border-radius: 10px; }
             .bot { background: #e6f2ff; padding: 10px; margin: 5px 0; border-radius: 8px; }
             .user { background: #d1ffe0; padding: 10px; margin: 5px 0; border-radius: 8px; text-align: right; }
             input, button { width: 100%; padding: 10px; margin-top: 10px; }
@@ -33,7 +33,7 @@ def home():
     <body>
         <div class="container">
             <h3>Rwanda Mountain Tea – AI Order Assistant</h3>
-            <div id="chat"></div>
+            <div id="chat" style="height:300px; overflow-y:scroll; border:1px solid #ccc; padding:10px;"></div>
             <input id="msg" placeholder="Type your message..." />
             <button onclick="send()">Send</button>
         </div>
@@ -41,9 +41,11 @@ def home():
         <script>
         function send() {
             const msg = document.getElementById("msg").value;
+            if(msg.trim() === '') return;
             const chat = document.getElementById("chat");
             chat.innerHTML += `<div class="user">${msg}</div>`;
-            
+            document.getElementById("msg").value = '';
+
             fetch("/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -52,13 +54,13 @@ def home():
             .then(r => r.json())
             .then(d => {
                 chat.innerHTML += `<div class="bot">${d.reply}</div>`;
+                chat.scrollTop = chat.scrollHeight;
             });
         }
         </script>
     </body>
     </html>
     """
-
 # -----------------------------
 # AI Chat Backend
 # -----------------------------
@@ -103,17 +105,56 @@ def order():
 # -----------------------------
 @app.route("/dashboard")
 def dashboard():
+    import pandas as pd
     rows = []
     if os.path.exists("orders.csv"):
-        with open("orders.csv") as f:
-            reader = csv.reader(f)
-            for row in reader:
-                rows.append(row)
+        df = pd.read_csv("orders.csv", header=None, names=["Time", "Buyer", "Product", "Quantity"])
+        rows = df.to_dict(orient="records")
+    else:
+        rows = []
 
-    html = "<h2>Orders Dashboard</h2><table border=1>"
+    # Build HTML with Chart.js
+    html = """
+    <html>
+    <head>
+        <title>Rwanda Mountain Tea Dashboard</title>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    </head>
+    <body>
+        <h2>Orders Dashboard</h2>
+        <canvas id="chart" width="600" height="400"></canvas>
+        <table border="1">
+            <tr><th>Time</th><th>Buyer</th><th>Product</th><th>Quantity</th></tr>
+    """
     for r in rows:
-        html += "<tr>" + "".join(f"<td>{c}</td>" for c in r) + "</tr>"
+        html += f"<tr><td>{r['Time']}</td><td>{r['Buyer']}</td><td>{r['Product']}</td><td>{r['Quantity']}</td></tr>"
+
     html += "</table>"
+
+    # Chart.js script
+    html += """
+    <script>
+        const ctx = document.getElementById('chart').getContext('2d');
+        const labels = """ + str([r['Time'] for r in rows]) + """;
+        const data = """ + str([int(r['Quantity']) for r in rows]) + """;
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Quantity Ordered',
+                    data: data,
+                    backgroundColor: 'rgba(27, 94, 32, 0.7)'
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    </script>
+    </body></html>
+    """
     return html
 
 # -----------------------------
