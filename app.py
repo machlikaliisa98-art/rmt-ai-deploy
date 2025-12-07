@@ -5,6 +5,9 @@ from twilio.rest import Client
 from dotenv import load_dotenv
 import datetime
 import openai
+@app.route("/health")
+def health():
+    return "OK"
 
 load_dotenv()
 
